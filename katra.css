@@ -1,0 +1,22 @@
+/* $Id$ */
+
+.block-katra .content ul {
+  padding-left: 0; /* LTR */
+}
+
+.block-katra .content ul li {
+  margin-bottom: 10px;
+  list-style-type: none;
+}
+
+.block-katra .date {
+  font-weight: bold;
+}
+
+.block-katra h4 {
+  margin: 0;
+}
+
+.block-katra .name {
+  font-style: italic;
+}

@@ -1,0 +1,188 @@
+<?php
+// $Id$
+
+/**
+ * @file
+ * Enables a single game for an individual or multiple users.
+ */
+
+// After you learn Form API in Chapter 5, you'll be able to
+// make these settings configurable.
+define('KATRA_NODE_TYPE', 'katra');
+define('KATRA_LIST_COUNT', 5);
+define('KATRA_DATE_FORMAT', 'F d, Y');
+
+/**
+ * Implements hook_menu().
+ */
+function katra_menu() {
+  // Specify that the "game" url will be handled by this module.
+  $items['game'] = array(
+    'title' => 'Game',
+    'page callback' => 'katra_page_last',
+    'access arguments' => array('access content'),
+    'type' => MENU_SUGGESTED_ITEM,
+    'file' => 'katra.pages.inc',
+  );
+  $items['game/feed'] = array(
+    'title' => 'Game',
+    'page callback' => 'katra_feed_last',
+    'access arguments' => array('access content'),
+    'type' => MENU_CALLBACK,
+    'file' => 'katra.pages.inc',
+  );
+
+  return $items;
+}
+
+/**
+ * Implements hook_node_view().
+ */
+function katra_node_view($node, $view_mode, $langcode) {
+  
+}
+
+/**
+ * Returns a list of game entries.
+ *
+ * @param $number
+ *   The number of game entries to return.
+ * @return
+ *   A result set object containing the list of game entries.
+ */
+function katra_list($number) {
+  // Use the Database API to retrieve our data.
+  // @see http://drupal.org/node/310069
+  $query = db_select('node', 'n')
+    ->fields('n', array('nid', 'title', 'created', 'uid'))
+    ->condition('type', KATRA_NODE_TYPE)
+    ->condition('status', 1)
+    ->orderBy('created', 'DESC')
+    ->range(0, $number)
+    ->addTag('node_access')
+    ->execute();
+
+  return $query;
+}
+
+/**
+ * Implements hook_block_info().
+ */
+function katra_block_info() {
+  $blocks = array();
+
+  // The array key defines the $delta parameter used in all
+  // other block hooks.
+  $blocks['recent'] = array(
+    // The name of the block on the blocks administration page.
+    'info' => t('Recent games'),
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_block_view().
+ */
+function katra_block_view($delta = '') {
+  // Create an empty block.
+  $block = array(
+    'subject' => '',
+    'content' => '',
+  );
+
+  // Check which block is being requested.
+  if ($delta == 'recent') {
+    // Set the block title.
+    $block['subject'] = t('Recent games');
+
+    // Check if the user can access content.
+    if (user_access('access content')) {
+      // Retrieve the most recent nodes.
+      $result = katra_list(KATRA_LIST_COUNT);
+
+      // Create links for each game entry.
+      $items = array();
+      foreach ($result as $node) {
+        $items[] = array(
+          'data' => array(
+            '#theme' => 'katra_block_item',
+            '#node' => $node,
+          ),
+          'class' => array('node-' . $node->nid),
+        );
+      }
+
+      if (!empty($items)) {
+        // Theme the list of game entries.
+        $block['content']['list'] = array(
+          '#theme' => 'item_list__katra',
+          '#items' => $items,
+          '#pre_render' => array('katra_item_list_child_render'),
+        );
+        // Add a link to the full list of game entries.
+        $block['content']['more'] = array(
+          '#theme' => 'more_link',
+          '#url' => 'game',
+          '#title' => t('Read the latest game entries.'),
+        );
+        // Add a CSS file to style the block.
+        $block['content']['#attached']['css'][] = drupal_get_path('module', 'katra') . '/katra.css';
+      }
+    }
+  }
+
+  return $block;
+}
+
+/**
+ * Render the child elements of theme_item_list() before its data is themed.
+ */
+function katra_item_list_child_render($elements) {
+  foreach (array_keys($elements['#items']) AS $key) {
+    // Take the renderable array that we set in katra_block_view() and
+    // render it into the string that theme_item_list() expects.
+    if (is_array($elements['#items'][$key]['data'])) {
+      $elements['#items'][$key]['data'] = drupal_render($elements['#items'][$key]['data']);
+    }
+  }
+  return $elements;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function katra_theme($existing, $type, $theme, $path) {
+  return array(
+    'katra_block_item' => array(
+      'variables' => array(
+        'node' => NULL,
+      ),
+      'template' => 'katra-block-item',
+    ),
+  );
+}
+
+/**
+ * Preprocesses single game block item variables.
+ */
+function template_preprocess_katra_block_item(&$variables) {
+  $node = $variables['node'];
+
+  // Create a renderable array for the title.
+  $variables['title'] = array(
+    '#type'  => 'link',
+    '#title' => $node->title,
+    '#href'  => 'node/' . $node->nid,
+  );
+
+  // Format the creation date of the node.
+  $variables['created'] = $node->created;
+  $variables['date'] = format_date($node->created, 'custom', KATRA_DATE_FORMAT);
+
+  // Load the account object with the node's creator and store in a variable for
+  // themer convenience.
+  $variables['user'] = user_load($node->uid);
+  // Theme the username.
+  $variables['name'] = theme('username', array('account' => $variables['user']));
+}

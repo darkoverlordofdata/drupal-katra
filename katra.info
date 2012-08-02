@@ -1,0 +1,8 @@
+
+name = Katra
+description = living essence ~ spirit
+
+core = 7.x
+package = Dark Overlord of Data
+
+files[] = katra.module
